@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Session context generation (default + record modes).
+Session context generation (default + compact + record modes).
 
 Provides:
     get_context_json          - JSON output for default mode
     get_context_text          - Text output for default mode
+    get_context_compact_json  - JSON for compact prompt orientation
+    get_context_text_compact  - Text for compact prompt orientation
     get_context_record_json   - JSON for record mode
     get_context_text_record   - Text for record mode
     output_json               - Print JSON
@@ -718,6 +720,103 @@ def get_context_text(repo_root: Path | None = None) -> str:
 
     lines.append("========================================")
 
+    return "\n".join(lines)
+
+
+# =============================================================================
+# Compact Mode
+# =============================================================================
+
+
+def get_context_compact_json(repo_root: Path | None = None) -> dict:
+    """Return the bounded session orientation used by prompt injection."""
+    if repo_root is None:
+        repo_root = get_repo_root()
+
+    git_info = _collect_root_git_info(repo_root)
+    tasks = list(iter_active_tasks(get_tasks_dir(repo_root)))
+    task_counts: dict[str, int] = {}
+    for task in tasks:
+        task_counts[task.status] = task_counts.get(task.status, 0) + 1
+
+    current = None
+    current_path = get_current_task(repo_root)
+    if current_path:
+        task = load_task(repo_root / current_path)
+        source_type, context_key, _ = get_current_task_source(repo_root)
+        current = {
+            "path": current_path,
+            "title": task.title if task else Path(current_path).name,
+            "status": task.status if task else "unknown",
+            "source": source_type + (f":{context_key}" if context_key else ""),
+        }
+
+    journal = None
+    journal_file = get_active_journal_file(repo_root)
+    if journal_file:
+        journal = {
+            "path": f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{get_developer(repo_root)}/{journal_file.name}",
+            "lines": count_lines(journal_file),
+            "limit": 2000,
+        }
+
+    return {
+        "developer": get_developer(repo_root) or "",
+        "currentTask": current,
+        "git": {
+            "isRepo": git_info["isRepo"],
+            "branch": git_info["branch"],
+            "isClean": git_info["isClean"],
+            "uncommittedChanges": git_info["uncommittedChanges"],
+            "attention": list(git_info.get("statusShort", []))[:5],
+        },
+        "taskCounts": dict(sorted(task_counts.items())),
+        "journal": journal,
+        "paths": {
+            "tasks": f"{DIR_WORKFLOW}/{DIR_TASKS}/",
+            "spec": f"{DIR_WORKFLOW}/{DIR_SPEC}/",
+        },
+    }
+
+
+def get_context_text_compact(repo_root: Path | None = None) -> str:
+    """Render compact prompt context without expanding the active task tree."""
+    data = get_context_compact_json(repo_root)
+    current = data["currentTask"]
+    git_info = data["git"]
+    counts = data["taskCounts"]
+
+    lines = ["SESSION CONTEXT (COMPACT)"]
+    if current:
+        lines.append(
+            "Current task: {path} | {status} | {title}".format(**current)
+        )
+    else:
+        lines.append("Current task: none")
+
+    git_state = "clean" if git_info["isClean"] else f"dirty {git_info['uncommittedChanges']}"
+    branch = git_info["branch"] or "not-a-repo"
+    lines.append(f"Git: {branch} | {git_state}")
+    lines.append(
+        "Tasks: "
+        + " ".join(f"{status}={count}" for status, count in counts.items())
+        if counts
+        else "Tasks: none"
+    )
+    attention = git_info["attention"]
+    if attention:
+        lines.append("Attention (first 5):")
+        lines.extend(f"- {item}" for item in attention)
+
+    journal = data["journal"]
+    if journal:
+        lines.append(
+            f"Journal: {journal['path']} ({journal['lines']}/{journal['limit']})"
+        )
+    lines.append(
+        f"Paths: tasks={data['paths']['tasks']} spec={data['paths']['spec']}"
+    )
+    lines.append("Details on demand: task.py current|list; get_context.py --mode default")
     return "\n".join(lines)
 
 

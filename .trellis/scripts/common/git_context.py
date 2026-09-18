@@ -18,6 +18,8 @@ from .git import run_git
 from .session_context import (
     get_context_json,
     get_context_text,
+    get_context_compact_json,
+    get_context_text_compact,
     get_context_record_json,
     get_context_text_record,
     output_json,
@@ -57,9 +59,9 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         "-m",
-        choices=["default", "record", "packages", "phase"],
+        choices=["default", "compact", "record", "packages", "phase"],
         default="default",
-        help="Output mode: default (full context), record (for record-session), packages (package info only), phase (workflow step extraction)",
+        help="Output mode: default (full context), compact (bounded prompt orientation), record (for record-session), packages (package info only), phase (workflow step extraction)",
     )
     parser.add_argument(
         "--step",
@@ -72,7 +74,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.mode == "record":
+    if args.mode == "compact":
+        if args.json:
+            print(json.dumps(get_context_compact_json(), indent=2, ensure_ascii=False))
+        else:
+            print(get_context_text_compact())
+    elif args.mode == "record":
         if args.json:
             print(json.dumps(get_context_record_json(), indent=2, ensure_ascii=False))
         else:

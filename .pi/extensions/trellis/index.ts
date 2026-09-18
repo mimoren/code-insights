@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import {
   delimiter,
@@ -95,6 +95,10 @@ const MAX_PARALLEL_PROMPTS = 6;
 const ABORT_KILL_GRACE_MS = 1500;
 const SESSION_OVERVIEW_TIMEOUT_MS = 1500;
 const THROTTLE_MS = 500;
+const HERDR_COMMAND_MAX_OUTPUT = 2 * 1024 * 1024;
+const HERDR_STARTUP_TIMEOUT_MS = 30_000;
+const HERDR_PROMPT_TIMEOUT_MS = 30 * 60 * 1000;
+const HERDR_SESSION_POLL_MS = 100;
 const FIRST_REPLY_NOTICE = `<first-reply-notice>
 On the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context loaded.
 Choose the acknowledgment language in this order:
@@ -144,6 +148,11 @@ interface RunState {
   model?: string;
   thinking?: string;
   errorMessage?: string;
+  agentEnded?: boolean;
+  display?: "headless" | "herdr";
+  herdrPaneId?: string;
+  herdrAgent?: string;
+  herdrSessionFile?: string;
 }
 interface ProgressDetails {
   kind: "trellis-subagent-progress";
@@ -321,7 +330,7 @@ function runElapsed(d: ProgressDetails, r: RunState) {
 }
 function runHeader(d: ProgressDetails, r: RunState) {
   const usage = fmtUsage(r.usage, modelLabel(r)) || fmtUsage(totalUsage(d));
-  return `${r.agent} · ${progressDone(d)}/${d.runs.length} done · ${progressState(d)} · ${runElapsed(d, r)}${usage ? ` · ${usage}` : ""}`;
+  return `${r.agent} · ${progressDone(d)}/${d.runs.length} done · ${progressState(d)} · ${runElapsed(d, r)}${r.display === "herdr" ? " · herdr" : ""}${usage ? ` · ${usage}` : ""}`;
 }
 function renderRunBlock(
   lines: string[],
@@ -708,6 +717,200 @@ function buildPiArgs(cfg: PiRunConfig): string[] {
   return args;
 }
 
+type PiDisplayMode = "auto" | "herdr" | "headless";
+
+export function readPiDisplayMode(): PiDisplayMode {
+  const value = (process.env.TRELLIS_PI_DISPLAY ?? "auto").trim().toLowerCase();
+  return value === "herdr" || value === "headless" ? value : "auto";
+}
+
+function envMilliseconds(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? Math.min(value, 24 * 60 * 60 * 1000) : fallback;
+}
+
+export function buildInteractivePiArgs(cfg: PiRunConfig): string[] {
+  const args: string[] = [];
+  if (cfg.model) args.push("--model", cfg.model);
+  else if (cfg.thinking && cfg.thinking !== "off") args.push("--thinking", cfg.thinking);
+  if (cfg.tools && cfg.tools.length > 0) args.push("--tools", cfg.tools.join(","));
+  return args;
+}
+
+function herdrWorkerName(agent: string): string {
+  return `trellis-${hash(`${agent}:${process.pid}:${Date.now()}:${Math.random()}`).slice(0, 24)}`;
+}
+
+interface HerdrCommandResult {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  error?: string;
+  timedOut?: boolean;
+  aborted?: boolean;
+}
+
+function runHerdrCommand(
+  args: string[],
+  timeoutMs: number,
+  signal?: AbortSignal,
+  cwd = process.cwd(),
+): Promise<HerdrCommandResult> {
+  if (signal?.aborted)
+    return Promise.resolve({
+      code: null,
+      stdout: "",
+      stderr: "",
+      aborted: true,
+      error: "cancelled",
+    });
+  return new Promise((resolve) => {
+    const stdout = new BBC(HERDR_COMMAND_MAX_OUTPUT);
+    const stderr = new BBC(HERDR_COMMAND_MAX_OUTPUT);
+    let child: ReturnType<typeof spawn>;
+    let settled = false;
+    let timedOut = false;
+    let aborted = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = (result: HerdrCommandResult) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      resolve(result);
+    };
+    const abort = () => {
+      aborted = true;
+      child.kill();
+    };
+    try {
+      child = spawn("herdr", args, {
+        cwd,
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+    } catch (error) {
+      finish({
+        code: null,
+        stdout: "",
+        stderr: "",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+    timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
+    child.stdout?.on("data", (data: Buffer) => stdout.append(data));
+    child.stderr?.on("data", (data: Buffer) => stderr.append(data));
+    child.on("error", (error) => {
+      finish({
+        code: null,
+        stdout: stdout.toString(),
+        stderr: stderr.toString(),
+        error: error.message,
+        timedOut,
+        aborted,
+      });
+    });
+    child.on("close", (code) => {
+      finish({
+        code,
+        stdout: stdout.toString(),
+        stderr: stderr.toString(),
+        timedOut,
+        aborted,
+        error: timedOut ? `herdr command timed out after ${timeoutMs}ms` : undefined,
+      });
+    });
+  });
+}
+
+export function parseHerdrJson(stdout: string): JsonObject | null {
+  const text = stdout.trim();
+  if (!text) return null;
+  const candidates = [text];
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1));
+  for (const candidate of candidates) {
+    try {
+      const value = JSON.parse(candidate);
+      if (isObj(value)) return value;
+    } catch {}
+  }
+  return null;
+}
+
+function herdrResult(payload: JsonObject | null): JsonObject | null {
+  if (!payload) return null;
+  return isObj(payload.result) ? payload.result : payload;
+}
+
+export function herdrPaneId(payload: JsonObject | null): string | null {
+  const result = herdrResult(payload);
+  const pane = isObj(result?.pane) ? result.pane : null;
+  return str(pane?.pane_id) ?? null;
+}
+
+export function herdrSessionFile(root: string, payload: JsonObject | null): string | null {
+  const result = herdrResult(payload);
+  const agent = isObj(result?.agent) ? result.agent : null;
+  const session = isObj(agent?.agent_session) ? agent.agent_session : null;
+  const value = str(session?.value);
+  if (!value) return null;
+  return isAbsolute(value) ? value : resolve(root, value);
+}
+
+export function buildHerdrSplitArgs(root: string, key: string | null): string[] {
+  const args = [
+    "pane",
+    "split",
+    "--current",
+    "--direction",
+    "right",
+    "--cwd",
+    root,
+    "--no-focus",
+    "--env",
+    "TRELLIS_SUBAGENT_CHILD=1",
+  ];
+  if (key) args.push("--env", `TRELLIS_CONTEXT_ID=${key}`);
+  return args;
+}
+
+export function buildHerdrStartArgs(
+  worker: string,
+  paneId: string,
+  cfg: PiRunConfig,
+  startupTimeoutMs: number,
+): string[] {
+  return [
+    "agent",
+    "start",
+    worker,
+    "--kind",
+    "pi",
+    "--pane",
+    paneId,
+    "--timeout",
+    String(startupTimeoutMs),
+    "--",
+    ...buildInteractivePiArgs(cfg),
+  ];
+}
+
+export function buildHerdrPromptArgs(
+  worker: string,
+  prompt: string,
+  timeoutMs: number,
+): string[] {
+  return ["agent", "prompt", worker, prompt, "--wait", "--timeout", String(timeoutMs)];
+}
+
 // ── BoundedBufferCollector ─────────────────────────────────────────────
 class BBC {
   private c: Buffer[] = [];
@@ -806,32 +1009,6 @@ function unquoteYaml(s: string): string {
  * `common.config.get_context_injection_limits()` semantics for this
  * section only (missing keys keep the default; invalid/negative values
  * fall back to the default for that key). */
-function readPiDispatchMode(repoRoot: string): "inline" | "sub-agent" {
-  const text = readText(join(repoRoot, ".trellis", "config.yaml"));
-  if (!text) return "inline";
-
-  let inSection = false;
-  let sectionIndent = -1;
-  for (const rawLine of text.split(/\r?\n/)) {
-    const trimmed = rawLine.trim();
-    if (!inSection) {
-      if (/^pi\s*:\s*(#.*)?$/.test(trimmed)) {
-        inSection = true;
-        sectionIndent = rawLine.length - rawLine.trimStart().length;
-      }
-      continue;
-    }
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const indent = rawLine.length - rawLine.trimStart().length;
-    if (indent <= sectionIndent) break;
-    const match = trimmed.match(/^dispatch_mode\s*:\s*(.*)$/);
-    if (!match) continue;
-    const mode = unquoteYaml(stripInlineComment(match[1]!).trim()).toLowerCase();
-    return mode === "sub-agent" ? "sub-agent" : "inline";
-  }
-  return "inline";
-}
-
 function readContextInjectionLimits(repoRoot: string): ContextInjectionLimits {
   const limits: ContextInjectionLimits = { ...DEFAULT_CONTEXT_INJECTION_LIMITS };
   const text = readText(join(repoRoot, ".trellis", "config.yaml"));
@@ -1097,11 +1274,7 @@ function readTaskDir(root: string, key: string | null): string | null {
 // ── Workflow State Breadcrumb ─────────────────────────────────────────
 const WF_RE =
   /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g;
-function workflowBreadcrumb(
-  root: string,
-  key: string | null,
-  dispatchMode: "inline" | "sub-agent",
-): string {
+function workflowBreadcrumb(root: string, key: string | null): string {
   const wf = readText(join(root, ".trellis", "workflow.md"));
   if (!wf) return "";
   const templates: Record<string, string> = {};
@@ -1124,11 +1297,7 @@ function workflowBreadcrumb(
       }
     } catch {}
   }
-  const body =
-    dispatchMode === "inline" &&
-    (lookup === "planning" || lookup === "in_progress")
-      ? templates[`${lookup}-inline`] ?? templates[lookup]
-      : templates[lookup];
+  const body = templates[lookup] ?? "Refer to workflow.md for current step.";
   return `<workflow-state>\n${header}\n${body ?? "Refer to workflow.md for current step."}\n</workflow-state>`;
 }
 
@@ -1154,7 +1323,7 @@ function runContextScript(root: string, key: string | null, args: string[]): str
 }
 
 function sessionOverview(root: string, key: string | null): string {
-  const stdout = runContextScript(root, key, []);
+  const stdout = runContextScript(root, key, ["--mode", "compact"]);
   return stdout ? `<session-overview>\n${stdout}\n</session-overview>` : "";
 }
 
@@ -1373,6 +1542,7 @@ function applyEvent(r: RunState, evt: JsonObject): boolean {
     return true;
   }
   if (type === "agent_end") {
+    r.agentEnded = true;
     r.finishedAt = Date.now();
     if (r.status === "running" || r.status === "pending")
       r.status = "succeeded";
@@ -1401,8 +1571,356 @@ function formatPiOutput(stdout: string, stderr: string): string {
   return ft || stdout || stderr;
 }
 
+export function applyPiSessionRecord(state: RunState, event: JsonObject): boolean {
+  if (event.type !== "message" || !isObj(event.message)) return false;
+  const message = event.message;
+  const role = str(message.role);
+  if (role === "assistant") {
+    const changed = applyEvent(state, { type: "message_end", message });
+    const blocks = Array.isArray(message.content) ? message.content : [];
+    let hasToolCall = false;
+    for (const block of blocks) {
+      if (!isObj(block) || block.type !== "toolCall") continue;
+      hasToolCall = true;
+      const id = str(block.id) ?? hash(`${state.id}:${state.tools.length}`);
+      const name = str(block.name) ?? "tool";
+      const existing = state.tools.find((tool) => tool.id === id);
+      if (existing) {
+        existing.name = name;
+        existing.args = summarizeToolArgs(name, block.arguments);
+        existing.status = "running";
+      } else {
+        state.tools.push({
+          id,
+          name,
+          args: summarizeToolArgs(name, block.arguments),
+          status: "running",
+          startedAt: Date.now(),
+        });
+      }
+    }
+    if (state.tools.length > MAX_TOOLS)
+      state.tools.splice(0, state.tools.length - MAX_TOOLS);
+    if (hasToolCall && !state.finalText && !message.errorMessage)
+      state.status = "running";
+    if (message.errorMessage || message.stopReason === "error")
+      state.status = "failed";
+    return changed || hasToolCall;
+  }
+  if (role !== "toolResult") return false;
+  const id = str(message.toolCallId);
+  if (!id) return false;
+  const existing = state.tools.find((tool) => tool.id === id);
+  if (existing) {
+    existing.status = message.isError === true ? "failed" : "succeeded";
+    existing.finishedAt = Date.now();
+  } else {
+    state.tools.push({
+      id,
+      name: str(message.toolName) ?? "tool",
+      args: "{}",
+      status: message.isError === true ? "failed" : "succeeded",
+      startedAt: Date.now(),
+      finishedAt: Date.now(),
+    });
+  }
+  return true;
+}
+
+interface PiSessionTail {
+  stop: () => { readable: boolean; error?: string };
+}
+
+function tailPiSession(
+  sessionFile: string,
+  state: RunState,
+  emit: () => void,
+): PiSessionTail {
+  let offset = 0;
+  let pending = Buffer.alloc(0);
+  let readable = false;
+  let error: string | undefined;
+  const processAvailable = () => {
+    let fd: number | undefined;
+    try {
+      const size = statSync(sessionFile).size;
+      readable = true;
+      if (size < offset) {
+        offset = 0;
+        pending = Buffer.alloc(0);
+      }
+      if (size === offset) return;
+      fd = openSync(sessionFile, "r");
+      let position = offset;
+      while (position < size) {
+        const length = Math.min(size - position, 64 * 1024);
+        const chunk = Buffer.allocUnsafe(length);
+        const count = readSync(fd, chunk, 0, length, position);
+        if (count <= 0) break;
+        pending = Buffer.concat([pending, chunk.subarray(0, count)]);
+        position += count;
+        if (pending.length > MAX_LINE_BUFFER)
+          pending = pending.subarray(pending.length - MAX_LINE_BUFFER);
+        let newline = pending.indexOf(10);
+        while (newline >= 0) {
+          const line = pending.subarray(0, newline).toString("utf8");
+          pending = pending.subarray(newline + 1);
+          const event = parseJsonEvent(line);
+          if (event && (applyEvent(state, event) || applyPiSessionRecord(state, event))) emit();
+          newline = pending.indexOf(10);
+        }
+      }
+      offset = position;
+    } catch (cause) {
+      const code = (cause as { code?: string }).code;
+      if (code !== "ENOENT")
+        error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+  };
+  processAvailable();
+  const timer = setInterval(processAvailable, HERDR_SESSION_POLL_MS);
+  timer.unref?.();
+  return {
+    stop: () => {
+      clearInterval(timer);
+      processAvailable();
+      if (pending.length) {
+        const event = parseJsonEvent(pending.toString("utf8"));
+        if (event && (applyEvent(state, event) || applyPiSessionRecord(state, event))) emit();
+      }
+      return { readable, ...(error ? { error } : {}) };
+    },
+  };
+}
+
+function herdrCommandError(label: string, result: HerdrCommandResult): string {
+  const detail = oneLine(result.error || result.stderr || result.stdout, 240);
+  if (result.aborted) return `${label} cancelled`;
+  if (result.timedOut) return `${label} timed out`;
+  return `${label} failed${detail ? `: ${detail}` : ` (exit ${result.code ?? "unknown"})`}`;
+}
+
+function isHerdrPaneBusy(result: HerdrCommandResult): boolean {
+  return /agent_pane_busy|pane\s+busy/i.test(
+    `${result.error ?? ""} ${result.stderr} ${result.stdout}`,
+  );
+}
+
+async function startHerdrAgent(
+  args: string[],
+  timeoutMs: number,
+  signal: AbortSignal | undefined,
+  cwd: string,
+): Promise<HerdrCommandResult> {
+  let result: HerdrCommandResult = {
+    code: null,
+    stdout: "",
+    stderr: "",
+    error: "Herdr Pi startup did not run",
+  };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 150 : 300));
+    result = await runHerdrCommand(args, timeoutMs, signal, cwd);
+    if (result.code === 0 || !isHerdrPaneBusy(result)) return result;
+  }
+  return result;
+}
+
+function cleanupHerdrPane(root: string, paneId: string): void {
+  void runHerdrCommand(["pane", "close", paneId], 5_000, undefined, root);
+}
+
+function finishHerdrRun(
+  state: RunState,
+  emit: () => void,
+  status: "failed" | "cancelled",
+  message: string,
+): { output: string; failed: boolean } {
+  state.status = status;
+  state.errorMessage = message;
+  state.finishedAt = Date.now();
+  emit();
+  return { output: finalize(state, message), failed: true };
+}
+
+async function runPiViaHerdr(
+  root: string,
+  prompt: string,
+  cfg: PiRunConfig,
+  state: RunState,
+  emit: () => void,
+  key: string | null | undefined,
+  signal?: AbortSignal,
+  force = false,
+): Promise<{ output: string; failed: boolean } | null> {
+  state.display = "herdr";
+  state.status = "running";
+  state.startedAt = Date.now();
+  emit();
+
+  const startupTimeout = envMilliseconds(
+    "TRELLIS_PI_HERDR_STARTUP_TIMEOUT_MS",
+    HERDR_STARTUP_TIMEOUT_MS,
+  );
+  const split = await runHerdrCommand(
+    buildHerdrSplitArgs(root, key),
+    startupTimeout,
+    signal,
+    root,
+  );
+  const splitPayload = parseHerdrJson(split.stdout);
+  const paneId = herdrPaneId(splitPayload);
+  if (signal?.aborted || split.aborted) {
+    if (paneId) cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(state, emit, "cancelled", "Herdr subagent cancelled");
+  }
+  if (split.code !== 0 || !paneId) {
+    if (
+      !force &&
+      split.code !== 0 &&
+      Boolean(split.error) &&
+      !split.timedOut &&
+      !split.stdout
+    )
+      return null;
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      herdrCommandError("Herdr pane creation", split),
+    );
+  }
+  state.herdrPaneId = paneId;
+  emit(true);
+
+  const worker = herdrWorkerName(state.agent);
+  state.herdrAgent = worker;
+  const start = await startHerdrAgent(
+    buildHerdrStartArgs(worker, paneId, cfg, startupTimeout),
+    startupTimeout + 5_000,
+    signal,
+    root,
+  );
+  if (signal?.aborted || start.aborted) {
+    void runHerdrCommand(
+      ["agent", "send-keys", worker, "ctrl+c"],
+      5_000,
+      undefined,
+      root,
+    );
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(state, emit, "cancelled", "Herdr Pi startup cancelled");
+  }
+  if (start.code !== 0) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      herdrCommandError("Herdr Pi startup", start),
+    );
+  }
+  const sessionFile = herdrSessionFile(root, parseHerdrJson(start.stdout));
+  if (!sessionFile) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      "Herdr Pi startup returned no session file",
+    );
+  }
+  state.herdrSessionFile = sessionFile;
+  const tail = tailPiSession(sessionFile, state, emit);
+  const promptTimeout = envMilliseconds(
+    "TRELLIS_PI_HERDR_PROMPT_TIMEOUT_MS",
+    HERDR_PROMPT_TIMEOUT_MS,
+  );
+  const interrupt = () => {
+    void runHerdrCommand(
+      ["agent", "send-keys", worker, "ctrl+c"],
+      5_000,
+      undefined,
+      root,
+    );
+  };
+  signal?.addEventListener("abort", interrupt, { once: true });
+  const prompted = await runHerdrCommand(
+    buildHerdrPromptArgs(worker, prompt, promptTimeout),
+    promptTimeout + 10_000,
+    signal,
+    root,
+  );
+  signal?.removeEventListener("abort", interrupt);
+  const session = tail.stop();
+  if (signal?.aborted || prompted.aborted) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "cancelled",
+      "Herdr Pi subagent cancelled",
+    );
+  }
+  if (session.error) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      `Pi session read failed: ${oneLine(session.error, 240)}`,
+    );
+  }
+  if (prompted.code !== 0) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      herdrCommandError("Herdr Pi prompt", prompted),
+    );
+  }
+  if (!session.readable) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      "Herdr Pi session file was not readable",
+    );
+  }
+  if (state.errorMessage) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(state, emit, "failed", state.errorMessage);
+  }
+  if (state.status === "failed") {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      state.errorMessage || "Herdr Pi session reported a failed run",
+    );
+  }
+  if (!state.agentEnded && !state.finalText) {
+    cleanupHerdrPane(root, paneId);
+    return finishHerdrRun(
+      state,
+      emit,
+      "failed",
+      "Herdr Pi prompt completed without a final session event",
+    );
+  }
+  state.status = "succeeded";
+  state.finishedAt = Date.now();
+  emit();
+  return { output: finalize(state, ""), failed: false };
+}
+
 // ── runPi: subprocess execution + event processing ───────────────────
-function runPi(
+function runPiHeadless(
   root: string,
   prompt: string,
   cfg: PiRunConfig,
@@ -1412,6 +1930,7 @@ function runPi(
   signal?: AbortSignal,
 ): Promise<{ output: string; failed: boolean }> {
   return new Promise((resolve) => {
+    state.display = "headless";
     if (signal?.aborted) {
       state.status = "cancelled";
       state.errorMessage = "cancelled";
@@ -1515,6 +2034,37 @@ function runPi(
     });
     cli.stdin?.end(prompt);
   });
+}
+
+function runPi(
+  root: string,
+  prompt: string,
+  cfg: PiRunConfig,
+  state: RunState,
+  emit: () => void,
+  key?: string | null,
+  signal?: AbortSignal,
+): Promise<{ output: string; failed: boolean }> {
+  const display = readPiDisplayMode();
+  const inHerdr = process.env.HERDR_ENV === "1";
+  if (display === "headless" || (display === "auto" && !inHerdr))
+    return runPiHeadless(root, prompt, cfg, state, emit, key, signal);
+  if (!inHerdr)
+    return Promise.resolve(
+      finishHerdrRun(state, emit, "failed", "Herdr display requested outside a Herdr session"),
+    );
+  return runPiViaHerdr(
+    root,
+    prompt,
+    cfg,
+    state,
+    emit,
+    key,
+    signal,
+    display === "herdr",
+  ).then((result) =>
+    result ?? runPiHeadless(root, prompt, cfg, state, emit, key, signal),
+  );
 }
 
 // ── runSubagent: orchestrate single/parallel/chain via native partial updates ──
@@ -1677,7 +2227,6 @@ export default function trellisExtension(pi: {
 }): void {
   if (process.env.TRELLIS_SUBAGENT_CHILD === "1") return;
   const root = findRoot(process.cwd());
-  const dispatchMode = readPiDispatchMode(root);
   const procKey = `pi_process_${hash([root, process.pid, Date.now(), randomBytes(8).toString("hex")].join(":"))}`;
   let curKey: string | null = null;
 
@@ -1701,7 +2250,7 @@ export default function trellisExtension(pi: {
     turnCache = {
       key: k,
       ts: now,
-      wf: workflowBreadcrumb(root, k, dispatchMode),
+      wf: workflowBreadcrumb(root, k),
       ov: sessionOverview(root, k),
     };
     return turnCache;
@@ -1727,7 +2276,6 @@ export default function trellisExtension(pi: {
   const lastSentTaskCtx = new Map<string, string>();
   const lastSentRuntimeCtx = new Map<string, string>();
 
-  if (dispatchMode === "sub-agent") {
   // Toggle only the latest subagent native card; do not use Pi global tool expansion.
   const toggleDetail = (ctx: PiExtensionContext) => {
     const id = activeSubagentToolCallId;
@@ -1904,7 +2452,6 @@ export default function trellisExtension(pi: {
   });
 
   // Events
-  }
 
   pi.on?.("session_start", (event, ctx) => {
     getKey(event, ctx);
@@ -1954,7 +2501,7 @@ export default function trellisExtension(pi: {
     // changes are delivered as persisted messages so the prefix stays stable.
     const freshTaskCtx = buildContext(
       root,
-      dispatchMode === "inline" ? "inline" : "trellis-implement",
+      "trellis-implement",
       k,
     );
     let taskCtx = taskCtxSnapshot.get(key);
@@ -1965,7 +2512,14 @@ export default function trellisExtension(pi: {
     }
     const updates: string[] = [];
     const runtimeContext = [turn.wf, turn.ov].filter(Boolean).join("\n\n");
-    if (runtimeContext && runtimeContext !== lastSentRuntimeCtx.get(key)) {
+    const previousRuntimeContext = lastSentRuntimeCtx.get(key);
+    if (previousRuntimeContext === undefined) {
+      // The startup system prompt already contains the initial overview. Send only
+      // the state-specific workflow breadcrumb on the first turn, then remember
+      // the complete snapshot for later change detection.
+      lastSentRuntimeCtx.set(key, runtimeContext);
+      if (turn.wf) updates.push(turn.wf);
+    } else if (runtimeContext && runtimeContext !== previousRuntimeContext) {
       lastSentRuntimeCtx.set(key, runtimeContext);
       updates.push(runtimeContext);
     }
