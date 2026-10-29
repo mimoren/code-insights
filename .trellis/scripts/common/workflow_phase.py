@@ -141,6 +141,25 @@ def _platform_matches(platform: str, block_names: list[str]) -> bool:
     return False
 
 
+_PLATFORM_MARKER_LABELS: dict[str, str] = {
+    # workflow.md marker blocks label platforms with their product names, but
+    # every caller passes the stable id instead (`--platform {{CLI_FLAG}}` in
+    # the start / continue commands). `_platform_matches` only strips
+    # punctuation, so an id that is not its label-minus-spaces never matches and
+    # `filter_platform` drops the block WITHOUT error — the section just comes
+    # back empty. Four platforms shipped that way before this table existed.
+    #
+    # Add an entry whenever a platform's id is not its marker label with the
+    # separators removed. `test/registry-invariants.test.ts` asserts every
+    # registry id keeps a non-empty routing section, so a missing entry fails
+    # there rather than silently blanking that platform's routing.
+    "claude": "Claude Code",
+    "kimi": "Kimi Code",
+    "omp": "Oh My Pi",
+    "dsh": "DeepSeek Harness",
+}
+
+
 def resolve_effective_platform(platform: str, config: dict) -> str:
     """Map configurable platforms to dispatch-mode virtual platform names.
 
@@ -156,8 +175,21 @@ def resolve_effective_platform(platform: str, config: dict) -> str:
     does not warn because it can run in normal CLI output flows.
 
     Pi defaults to ``pi-inline`` and uses ``pi-sub-agent`` only when explicitly
-    configured. Other platforms are returned unchanged.
+    configured. Pi dispatch is resolved before marker-label aliases so the
+    result stays the workflow selector. Platforms whose marker label differs
+    from their id resolve through ``_PLATFORM_MARKER_LABELS``. Everything else
+    is returned unchanged.
     """
+    if platform == "pi":
+        mode = "inline"
+        pi_cfg = config.get("pi") if isinstance(config, dict) else None
+        if isinstance(pi_cfg, dict):
+            configured = str(pi_cfg.get("dispatch_mode", mode)).strip().lower()
+            mode = "sub-agent" if configured == "sub-agent" else "inline"
+        return "pi-sub-agent" if mode == "sub-agent" else "pi-inline"
+    label = _PLATFORM_MARKER_LABELS.get(platform.strip().lower())
+    if label:
+        return label
     if platform == "codex":
         mode = "auto"
         codex_cfg = config.get("codex") if isinstance(config, dict) else None

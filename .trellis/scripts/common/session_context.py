@@ -737,7 +737,8 @@ def get_context_compact_json(repo_root: Path | None = None) -> dict:
     tasks = list(iter_active_tasks(get_tasks_dir(repo_root)))
     task_counts: dict[str, int] = {}
     for task in tasks:
-        task_counts[task.status] = task_counts.get(task.status, 0) + 1
+        status = task.status if task.status in {"planning", "pending", "in_progress", "completed", "archived", "blocked", "cancelled"} else "other"
+        task_counts[status] = task_counts.get(status, 0) + 1
 
     current = None
     current_path = get_current_task(repo_root)
@@ -760,7 +761,7 @@ def get_context_compact_json(repo_root: Path | None = None) -> dict:
             "limit": 2000,
         }
 
-    return {
+    result = {
         "developer": get_developer(repo_root) or "",
         "currentTask": current,
         "git": {
@@ -777,6 +778,31 @@ def get_context_compact_json(repo_root: Path | None = None) -> dict:
             "spec": f"{DIR_WORKFLOW}/{DIR_SPEC}/",
         },
     }
+    # Bound the complete rendered JSON, not just the number of git entries.
+    # Shrink UTF-8 fields together; keep the shape and use detailed context for
+    # full paths/titles. Also account for pretty-printing and ASCII escaping.
+    def bounded(value, cap):
+        if isinstance(value, str):
+            raw = value.encode("utf-8")
+            return raw[:cap].decode("utf-8", errors="ignore")
+        if isinstance(value, dict):
+            return {bounded(key, cap): bounded(item, cap) for key, item in value.items()}
+        if isinstance(value, list):
+            return [bounded(item, cap) for item in value]
+        return value
+
+    for cap in (96, 48, 24, 12, 6, 3, 1):
+        # Schema keys are stable; only values need truncation. Status keys are
+        # from the fixed vocabulary above, so task totals remain interpretable.
+        candidate = {key: bounded(value, cap) for key, value in result.items()}
+        for key in ("git", "currentTask", "journal", "paths"):
+            value = result[key]
+            if isinstance(value, dict):
+                candidate[key] = {name: bounded(item, cap) for name, item in value.items()}
+        candidate["taskCounts"] = result["taskCounts"]
+        if len(json.dumps(candidate, indent=2, ensure_ascii=True).encode("utf-8")) <= 2000:
+            return candidate
+    raise ValueError("compact context exceeds bounded schema")
 
 
 def get_context_text_compact(repo_root: Path | None = None) -> str:
@@ -817,7 +843,7 @@ def get_context_text_compact(repo_root: Path | None = None) -> str:
         f"Paths: tasks={data['paths']['tasks']} spec={data['paths']['spec']}"
     )
     lines.append("Details on demand: task.py current|list; get_context.py --mode default")
-    return "\n".join(lines)
+    return "\n".join(lines).encode("utf-8")[:2048].decode("utf-8", errors="ignore")
 
 
 # =============================================================================
