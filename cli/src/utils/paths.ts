@@ -1,3 +1,5 @@
+export const DEFAULT_GAINS_DIR = '/data/ai/gains';
+
 /**
  * Extract real filesystem path and optional session fragment from a virtual path.
  * Virtual paths use '#' delimiter: "/path/to/state.vscdb#composerId"

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import chalk from 'chalk';
 import { getDb } from '../db/client.js';
+import { DEFAULT_GAINS_DIR } from '../utils/paths.js';
 
 // ──────────────────────────────────────────────────────
 // Types
@@ -255,7 +256,7 @@ function loadExistingSessionIds(filePath: string): Set<string> {
 // ──────────────────────────────────────────────────────
 
 async function memoriesAction(options: MemoriesOptions): Promise<void> {
-  const gainsDir = options.gainsDir ?? '/data/apps/gains';
+  const gainsDir = options.gainsDir ?? DEFAULT_GAINS_DIR;
   const dateStr = options.date ?? new Date().toISOString().slice(0, 10);
 
   console.log(chalk.cyan('\n  Code Insights — 记忆\n'));
@@ -354,7 +355,7 @@ export const memoriesCommand = new Command('memories')
   .option('--date <date>', '要处理的日期（YYYY-MM-DD，默认：今天）')
   .option('--project <name>', '按项目名称或路径片段筛选')
   .option('--dry-run', '预览输出但不写入文件')
-  .option('--gains-dir <dir>', 'Gains 根目录（默认：/data/apps/gains）')
+  .option('--gains-dir <dir>', `Gains 根目录（默认：${DEFAULT_GAINS_DIR}）`)
   .action(async (options: MemoriesOptions) => {
     await memoriesAction(options);
   });

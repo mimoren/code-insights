@@ -46,7 +46,7 @@ function buildJSONL(lines: string[]): string {
 function writeCodexRollout(tempDir: string, sessionId: string, userText: string, assistantText: string): string {
   const filePath = path.join(tempDir, `rollout-${sessionId}.jsonl`);
   const content = buildJSONL([
-    sessionMeta(sessionId, '/Users/rrming/data/apps/cgyj'),
+    sessionMeta(sessionId, '/data/pers/cgyj'),
     userMessageLine(userText),
     assistantLine(assistantText),
     taskCompleteLine(),
@@ -87,6 +87,13 @@ describe('CodexProvider — Format A system context filtering', () => {
     expect(session).not.toBeNull();
     expect(session!.userMessageCount).toBe(1);
     expect(session!.assistantMessageCount).toBe(1);
+  });
+
+  it('preserves the project path and derives its name from a partitioned workspace', async () => {
+    const filePath = writeCodexRollout(tempDir, 'partitioned-cwd', 'Summarize this file.', 'Done.');
+    const session = await new CodexProvider().parse(filePath);
+
+    expect(session).toMatchObject({ projectPath: '/data/pers/cgyj', projectName: 'cgyj' });
   });
 
   it('filters out <permissions> system context messages', async () => {

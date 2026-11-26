@@ -59,7 +59,7 @@ SELECT
 - DB：`~/.code-insights/data.db`
 - 配置：`config.json`；sync 增量：`sync-state.json`；导出增量：`export-state.json`
 - hook worker 日志：`hook-analysis.log`
-- gains 默认：`/data/apps/gains`
+- gains 默认：`/data/ai/gains`
 
 ## Anti-patterns
 

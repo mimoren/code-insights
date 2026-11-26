@@ -4,13 +4,13 @@ import { join } from 'path';
 import { homedir } from 'os';
 import chalk from 'chalk';
 import { getDb } from '../db/client.js';
+import { DEFAULT_GAINS_DIR } from '../utils/paths.js';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const STATE_FILE = join(homedir(), '.code-insights', 'export-state.json');
-const DEFAULT_GAINS_DIR = '/data/apps/gains';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -394,7 +394,7 @@ export const exportMemoriesCommand = new Command('export-memories')
   .option('-d, --date <date>', '仅导出该日期的会话（YYYY-MM-DD）')
   .option('-q, --quiet', '静默输出')
   .option('-v, --verbose', '详细输出，包含文件路径')
-  .option('--gains-dir <dir>', 'Gains 根目录（默认：/data/apps/gains）')
+  .option('--gains-dir <dir>', `Gains 根目录（默认：${DEFAULT_GAINS_DIR}）`)
   .action(async (options: ExportMemoriesOptions) => {
     await exportMemoriesAction(options);
   });

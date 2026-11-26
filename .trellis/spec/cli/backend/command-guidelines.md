@@ -67,7 +67,7 @@ HTTP 类命令（`reflect.ts`、`analyze.ts`）内有一份 `getBaseUrl()`：`lo
 
 `memories`（`commands/memories.ts`）：
 
-- 默认 `--gains-dir /data/apps/gains`
+- 默认 `--gains-dir /data/ai/gains`
 - 按 `basename(projectPath)` 分组，写入 `<gains>/<project>/aiws/memories/<YYYY-MM-DD>.md`
 - `mkdirSync(..., { recursive: true })`
 - 去重读文件里的 `> session: <id>`

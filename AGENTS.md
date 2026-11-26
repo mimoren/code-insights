@@ -53,8 +53,7 @@ code-insights 是主人魔改的开源 AI 会话分析工具，将散落在各�
 
 ## 仓库位置
 
-- 源码：`/data/github/code-insights`（主人魔改版）
-- apps 链接：`/data/apps/code-insights` → `/data/github/code-insights`
+- 源码：`/data/ai/insights`（主人魔改版）
 
 ## 技术栈
 
