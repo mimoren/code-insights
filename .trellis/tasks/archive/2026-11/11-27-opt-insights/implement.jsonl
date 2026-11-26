@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/cli/backend/command-guidelines.md", "reason": "遵循 CLI 默认值和兼容合同"}
+{"file": ".trellis/spec/dashboard/frontend/quality-guidelines.md", "reason": "修复前端类型错误"}
