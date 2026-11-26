@@ -133,7 +133,7 @@ describe('Insights routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('Missing or invalid field');
+      expect(body.error).toContain('缺少或无效的字段');
     });
 
     it('returns 400 for invalid type', async () => {
@@ -153,7 +153,7 @@ describe('Insights routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('type must be one of');
+      expect(body.error).toContain('type 必须是以下之一');
     });
   });
 
@@ -184,7 +184,7 @@ describe('Insights routes', () => {
       });
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toBe('Not found');
+      expect(body.error).toBe('未找到');
     });
   });
 });

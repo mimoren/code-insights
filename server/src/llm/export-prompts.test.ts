@@ -124,9 +124,9 @@ describe('buildInsightContext', () => {
       makeInsight({ type: 'technique', title: 'My Technique' }),
     ];
     const result = buildInsightContext(insights);
-    expect(result).toContain('## DECISIONS');
-    expect(result).toContain('## LEARNINGS');
-    expect(result).toContain('## TECHNIQUES');
+    expect(result).toContain('## 决策');
+    expect(result).toContain('## 学习收获');
+    expect(result).toContain('## 技巧');
     expect(result).toContain('My Decision');
     expect(result).toContain('My Learning');
     expect(result).toContain('My Technique');
@@ -164,11 +164,11 @@ describe('buildInsightContext', () => {
       makeInsight({ type: 'decision', title: 'Decision Item' }),
     ];
     const result = buildInsightContext(insights);
-    const decisionPos = result.indexOf('## DECISIONS');
-    const learningPos = result.indexOf('## LEARNINGS');
-    const techniquePos = result.indexOf('## TECHNIQUES');
-    const pqPos = result.indexOf('## PROMPT QUALITY');
-    const summaryPos = result.indexOf('## SESSION SUMMARIES');
+    const decisionPos = result.indexOf('## 决策');
+    const learningPos = result.indexOf('## 学习收获');
+    const techniquePos = result.indexOf('## 技巧');
+    const pqPos = result.indexOf('## 提示词质量');
+    const summaryPos = result.indexOf('## 会话摘要');
     expect(decisionPos).toBeLessThan(learningPos);
     expect(learningPos).toBeLessThan(techniquePos);
     expect(techniquePos).toBeLessThan(pqPos);
@@ -190,13 +190,13 @@ describe('buildInsightContext', () => {
   it('renders prompt_quality header correctly', () => {
     const insights = [makeInsight({ type: 'prompt_quality', title: 'PQ Item' })];
     const result = buildInsightContext(insights);
-    expect(result).toContain('## PROMPT QUALITY');
+    expect(result).toContain('## 提示词质量');
   });
 
   it('renders summary header correctly', () => {
     const insights = [makeInsight({ type: 'summary', title: 'Session Summary' })];
     const result = buildInsightContext(insights);
-    expect(result).toContain('## SESSION SUMMARIES');
+    expect(result).toContain('## 会话摘要');
   });
 });
 
@@ -285,39 +285,39 @@ describe('buildExportUserPrompt', () => {
   it('project scope includes "Project: {name}"', () => {
     const ctx = makeContext({ scope: 'project', projectName: 'my-app' });
     const result = buildExportUserPrompt(ctx, '');
-    expect(result).toContain('Project: my-app');
+    expect(result).toContain('项目：my-app');
   });
 
   it('all scope includes "All projects ({count} projects)"', () => {
     const ctx = makeContext({ scope: 'all', projectCount: 5 });
     const result = buildExportUserPrompt(ctx, '');
-    expect(result).toContain('All projects (5 projects)');
+    expect(result).toContain('全部项目（5 个项目）');
   });
 
   it('all scope uses singular "project" for count of 1', () => {
     const ctx = makeContext({ scope: 'all', projectCount: 1 });
     const result = buildExportUserPrompt(ctx, '');
-    expect(result).toContain('All projects (1 project)');
+    expect(result).toContain('全部项目（1 个项目）');
   });
 
   it('includes session count', () => {
     const ctx = makeContext({ sessionCount: 42 });
     const result = buildExportUserPrompt(ctx, '');
-    expect(result).toContain('Sessions analyzed: 42');
+    expect(result).toContain('分析会话数：42');
   });
 
   it('includes date range', () => {
     const ctx = makeContext({ dateRange: { from: '2025-01-01', to: '2025-12-31' } });
     const result = buildExportUserPrompt(ctx, '');
-    expect(result).toContain('Date range: 2025-01-01 to 2025-12-31');
+    expect(result).toContain('日期范围：2025-01-01 至 2025-12-31');
   });
 
   it('combines header with insight context', () => {
     const ctx = makeContext({ scope: 'project', projectName: 'demo' });
-    const insightContext = '## DECISIONS\n\n### Some Decision [demo] (confidence: 85%)\nContent here\n';
+    const insightContext = '## 决策\n\n### Some Decision [demo]（置信度：85%）\nContent here\n';
     const result = buildExportUserPrompt(ctx, insightContext);
-    expect(result).toContain('Project: demo');
-    expect(result).toContain('## DECISIONS');
+    expect(result).toContain('项目：demo');
+    expect(result).toContain('## 决策');
     expect(result).toContain('Content here');
   });
 

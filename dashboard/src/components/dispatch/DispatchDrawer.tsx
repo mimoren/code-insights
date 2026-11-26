@@ -64,6 +64,7 @@ interface SortableInsightItemProps {
 }
 
 function SortableInsightItem({ insight, onRemove }: SortableInsightItemProps) {
+  const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: insight.id });
 
   const style = {

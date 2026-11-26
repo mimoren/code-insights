@@ -172,13 +172,13 @@ describe('analyzeSession', () => {
     mockIsConfigured.mockReturnValue(false);
     const result = await analyzeSession(makeSession(), [makeMessage()]);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('LLM not configured');
+    expect(result.error).toContain('LLM 未配置');
   });
 
   it('guard: empty messages', async () => {
     const result = await analyzeSession(makeSession(), []);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('No messages');
+    expect(result.error).toBe('未找到此会话的消息。');
   });
 
   it('parse failure — non-JSON response', async () => {
@@ -289,13 +289,13 @@ describe('analyzePromptQuality', () => {
     mockIsConfigured.mockReturnValue(false);
     const result = await analyzePromptQuality(makeSession(), twoUserMessages);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('LLM not configured');
+    expect(result.error).toContain('LLM 未配置');
   });
 
   it('guard: empty messages', async () => {
     const result = await analyzePromptQuality(makeSession(), []);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('No messages');
+    expect(result.error).toBe('未找到此会话的消息。');
   });
 
   it('guard: fewer than 2 user messages', async () => {
@@ -304,7 +304,7 @@ describe('analyzePromptQuality', () => {
       makeMessage({ id: 'msg-2', type: 'assistant' }),
     ]);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('at least 2');
+    expect(result.error).toContain('至少需要 2');
   });
 
   it('guard: 1 human + many tool-result rows is rejected (V6 gate fix)', async () => {
@@ -320,7 +320,7 @@ describe('analyzePromptQuality', () => {
     ];
     const result = await analyzePromptQuality(makeSession(), messages);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('at least 2');
+    expect(result.error).toContain('至少需要 2');
   });
 
   it('guard: 2 human messages among tool-results passes the gate', async () => {
@@ -387,7 +387,7 @@ describe('findRecurringInsights', () => {
     mockIsConfigured.mockReturnValue(false);
     const result = await findRecurringInsights([makeInsight('i1'), makeInsight('i2')]);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('LLM not configured');
+    expect(result.error).toContain('LLM 未配置');
   });
 
   it('guard: fewer than 2 non-summary insights', async () => {
@@ -395,7 +395,7 @@ describe('findRecurringInsights', () => {
       makeInsight('i1', { type: 'decision' }),
     ]);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('at least 2');
+    expect(result.error).toContain('至少需要 2');
   });
 
   it('filters summary and prompt_quality types', async () => {
@@ -404,7 +404,7 @@ describe('findRecurringInsights', () => {
       makeInsight('i2', { type: 'prompt_quality' }),
     ]);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('at least 2');
+    expect(result.error).toContain('至少需要 2');
   });
 
   it('validates returned IDs — fake IDs filtered out', async () => {
@@ -481,13 +481,13 @@ describe('extractFacetsOnly', () => {
     mockIsConfigured.mockReturnValue(false);
     const result = await extractFacetsOnly(makeSession(), [makeMessage()]);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('LLM not configured');
+    expect(result.error).toContain('LLM 未配置');
   });
 
   it('guard: empty messages', async () => {
     const result = await extractFacetsOnly(makeSession(), []);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('No messages');
+    expect(result.error).toBe('未找到消息。');
   });
 
   it('happy path — valid facet JSON saved to DB', async () => {

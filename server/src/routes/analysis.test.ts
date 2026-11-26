@@ -96,7 +96,7 @@ describe('Analysis routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/LLM not configured/);
+      expect(body.error).toMatch(/LLM 未配置/);
     });
 
     it('returns 400 when sessionId missing from body', async () => {
@@ -135,7 +135,7 @@ describe('Analysis routes', () => {
       });
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toMatch(/Session not found/);
+      expect(body.error).toMatch(/会话未找到/);
     });
 
     it('returns 200 and sets generated_title on success', async () => {
@@ -190,7 +190,7 @@ describe('Analysis routes', () => {
       const res = await app.request('/api/analysis/session/stream?sessionId=some-id');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/LLM not configured/);
+      expect(body.error).toMatch(/LLM 未配置/);
     });
 
     it('returns 400 when sessionId query param missing', async () => {
@@ -214,7 +214,7 @@ describe('Analysis routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/LLM not configured/);
+      expect(body.error).toMatch(/LLM 未配置/);
     });
 
     it('returns 400 when sessionId missing from body', async () => {
@@ -240,7 +240,7 @@ describe('Analysis routes', () => {
       });
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toMatch(/Session not found/);
+      expect(body.error).toMatch(/会话未找到/);
     });
 
     it('returns 200 on success', async () => {
@@ -292,7 +292,7 @@ describe('Analysis routes', () => {
       const res = await app.request('/api/analysis/prompt-quality/stream?sessionId=some-id');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/LLM not configured/);
+      expect(body.error).toMatch(/LLM 未配置/);
     });
 
     it('returns 400 when sessionId query param missing', async () => {
@@ -316,7 +316,7 @@ describe('Analysis routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/LLM not configured/);
+      expect(body.error).toMatch(/LLM 未配置/);
     });
 
     it('returns 200 with groups on success', async () => {

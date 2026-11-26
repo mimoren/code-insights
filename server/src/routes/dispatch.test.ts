@@ -150,7 +150,7 @@ describe('POST /api/dispatch/generate', () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json() as { error: string };
-    expect(json.error).toMatch(/LLM not configured/);
+    expect(json.error).toMatch(/LLM 未配置/);
   });
 
   it('returns 400 when insightIds < 3', async () => {
@@ -162,7 +162,7 @@ describe('POST /api/dispatch/generate', () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json() as { error: string };
-    expect(json.error).toMatch(/at least 3/);
+    expect(json.error).toMatch(/至少选择 3 个 insights/);
   });
 
   it('returns 400 when insightIds > 8', async () => {
@@ -174,7 +174,7 @@ describe('POST /api/dispatch/generate', () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json() as { error: string };
-    expect(json.error).toMatch(/8 or fewer/);
+    expect(json.error).toMatch(/不超过 8 个 insights/);
   });
 
   it('returns 400 when context is empty', async () => {
@@ -218,7 +218,7 @@ describe('POST /api/dispatch/generate', () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json() as { error: string };
-    expect(json.error).toMatch(/format must be one of/);
+    expect(json.error).toMatch(/format 必须是以下之一/);
   });
 
   it('returns 404 when no insights found in DB', async () => {
@@ -246,7 +246,7 @@ describe('POST /api/dispatch/generate', () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json() as { error: string };
-    expect(json.error).toMatch(/at least 3/);
+    expect(json.error).toMatch(/至少选择 3 个 insights/);
   });
 
   it('happy path: returns 200 with parsed markdown, frontmatter, wordCount', async () => {
@@ -498,7 +498,7 @@ describe('POST /api/dispatch/generate', () => {
 
     const callArgs = mockClient.chat.mock.calls[0][0] as Array<{ role: string; content: string }>;
     const userMsg = callArgs.find(m => m.role === 'user')?.content ?? '';
-    expect(userMsg).toContain('SESSION BACKGROUND');
+    expect(userMsg).toContain('会话背景');
     // Cap at 4 — sess-bg5 (least contributing) should not appear
     const sessionCount = (userMsg.match(/\[Session:/g) ?? []).length;
     expect(sessionCount).toBeLessThanOrEqual(4);
@@ -523,7 +523,7 @@ describe('POST /api/dispatch/generate', () => {
 
     const callArgs = mockClient.chat.mock.calls[0][0] as Array<{ role: string; content: string }>;
     const userMsg = callArgs.find(m => m.role === 'user')?.content ?? '';
-    expect(userMsg).not.toContain('SESSION BACKGROUND');
+    expect(userMsg).not.toContain('会话背景');
   });
 
   it('includeSessionBackground: sessions without summary are silently skipped', async () => {
@@ -560,7 +560,7 @@ describe('POST /api/dispatch/generate', () => {
     expect(res.status).toBe(200);
     const callArgs = mockClient.chat.mock.calls[0][0] as Array<{ role: string; content: string }>;
     const userMsg = callArgs.find(m => m.role === 'user')?.content ?? '';
-    expect(userMsg).not.toContain('SESSION BACKGROUND');
+    expect(userMsg).not.toContain('会话背景');
   });
 
   it('includeSessionBackground: filter-then-rank — top-ranked sessions with no summary do not block lower-ranked sessions that have summaries', async () => {
@@ -617,7 +617,7 @@ describe('POST /api/dispatch/generate', () => {
     const callArgs = mockClient.chat.mock.calls[0][0] as Array<{ role: string; content: string }>;
     const userMsg = callArgs.find(m => m.role === 'user')?.content ?? '';
     // The 3 sessions with summaries must appear — filter-first ensures they are not displaced
-    expect(userMsg).toContain('SESSION BACKGROUND');
+    expect(userMsg).toContain('会话背景');
     expect(userMsg).toContain('Alpha Summary');
     expect(userMsg).toContain('Beta Summary');
     expect(userMsg).toContain('Gamma Summary');
@@ -655,7 +655,7 @@ describe('POST /api/dispatch/image-prompt', () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json() as { error: string };
-    expect(json.error).toMatch(/LLM not configured/);
+    expect(json.error).toMatch(/LLM 未配置/);
   });
 
   it('returns 400 when title is missing', async () => {

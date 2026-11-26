@@ -146,7 +146,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('sessionIds must be an array');
+      expect(body.error).toContain('sessionIds 必须是数组');
     });
 
     it('exports by projectId when no sessionIds provided', async () => {
@@ -189,7 +189,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('template must be');
+      expect(body.error).toContain('template 必须是');
     });
 
     it('knowledge-base template includes structured insight content', async () => {
@@ -292,7 +292,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('LLM not configured');
+      expect(body.error).toContain('LLM 未配置');
     });
 
     it('returns 400 for invalid scope', async () => {
@@ -306,7 +306,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('scope must be');
+      expect(body.error).toContain('scope 必须是');
     });
 
     it('returns 400 when scope=project but no projectId', async () => {
@@ -320,7 +320,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('projectId is required');
+      expect(body.error).toContain('projectId 为必填项');
     });
 
     it('returns 400 for invalid format', async () => {
@@ -334,7 +334,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('format must be');
+      expect(body.error).toContain('format 必须是');
     });
 
     it('returns 400 for invalid depth', async () => {
@@ -348,7 +348,7 @@ describe('Export routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('depth must be');
+      expect(body.error).toContain('depth 必须是');
     });
 
     it('returns 200 with content and metadata on success (scope=all)', async () => {
@@ -436,7 +436,7 @@ describe('Export routes', () => {
       const res = await app.request('/api/export/generate/stream?scope=all&format=agent-rules');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('LLM not configured');
+      expect(body.error).toContain('LLM 未配置');
     });
 
     it('returns 400 when format is missing', async () => {
@@ -446,7 +446,7 @@ describe('Export routes', () => {
       const res = await app.request('/api/export/generate/stream?scope=all');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('format must be');
+      expect(body.error).toContain('format 必须是');
     });
 
     it('returns 400 for invalid scope', async () => {
@@ -456,7 +456,7 @@ describe('Export routes', () => {
       const res = await app.request('/api/export/generate/stream?scope=badscope&format=agent-rules');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('scope must be');
+      expect(body.error).toContain('scope 必须是');
     });
 
     it('returns 400 when scope=project and no projectId', async () => {
@@ -466,7 +466,7 @@ describe('Export routes', () => {
       const res = await app.request('/api/export/generate/stream?scope=project&format=agent-rules');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('projectId is required');
+      expect(body.error).toContain('projectId 为必填项');
     });
 
     it('emits error SSE event when no insights found', async () => {
@@ -482,7 +482,7 @@ describe('Export routes', () => {
       const errorEvent = events.find(e => e.event === 'error');
       expect(errorEvent).toBeDefined();
       const errorData = JSON.parse(errorEvent!.data);
-      expect(errorData.error).toContain('No insights found');
+      expect(errorData.error).toContain('未找到 insights');
     });
 
     it('emits progress and complete SSE events on success', async () => {

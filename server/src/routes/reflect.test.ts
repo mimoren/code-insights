@@ -445,7 +445,7 @@ describe('Reflect routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('LLM not configured');
+      expect(body.error).toContain('LLM 未配置');
     });
 
     it('streams SSE error when no sessions with facets found', async () => {
@@ -464,7 +464,7 @@ describe('Reflect routes', () => {
       const errorEvent = events.find(e => e.event === 'error');
       expect(errorEvent).toBeDefined();
       const errorData = JSON.parse(errorEvent!.data);
-      expect(errorData.error).toContain('No sessions with facets found');
+      expect(errorData.error).toContain('未找到包含 facets 的会话');
     });
 
     it('streams SSE error with INSUFFICIENT_FACETS code when below threshold', async () => {

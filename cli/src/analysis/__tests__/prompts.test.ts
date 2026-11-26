@@ -343,8 +343,8 @@ describe('formatMessagesForAnalysis', () => {
 describe('buildCacheableConversationBlock', () => {
   it('wraps formatted messages in conversation markers', () => {
     const block = buildCacheableConversationBlock('### User#0:\nHello');
-    expect(block.text).toContain('--- CONVERSATION ---');
-    expect(block.text).toContain('--- END CONVERSATION ---');
+    expect(block.text).toContain('--- 对话记录 ---');
+    expect(block.text).toContain('--- 对话记录结束 ---');
     expect(block.text).toContain('### User#0:\nHello');
   });
 
@@ -371,12 +371,12 @@ describe('buildCacheableConversationBlock', () => {
 describe('buildSessionAnalysisInstructions', () => {
   it('includes project name in the instructions', () => {
     const result = buildSessionAnalysisInstructions('my-app', null);
-    expect(result).toContain('Project: my-app');
+    expect(result).toContain('项目：my-app');
   });
 
   it('includes session summary when provided', () => {
     const result = buildSessionAnalysisInstructions('my-app', 'Fixed a critical bug');
-    expect(result).toContain('Session Summary: Fixed a critical bug');
+    expect(result).toContain('会话摘要：Fixed a critical bug');
   });
 
   it('omits session summary line when null', () => {
@@ -386,8 +386,8 @@ describe('buildSessionAnalysisInstructions', () => {
 
   it('contains the PART 1 and PART 2 section headers', () => {
     const result = buildSessionAnalysisInstructions('my-app', null);
-    expect(result).toContain('=== PART 1: SESSION FACETS ===');
-    expect(result).toContain('=== PART 2: INSIGHTS ===');
+    expect(result).toContain('=== 第一部分：会话特征 ===');
+    expect(result).toContain('=== 第二部分：洞察 ===');
   });
 
   it('ends with json tags instruction', () => {
@@ -409,12 +409,12 @@ describe('buildPromptQualityInstructions', () => {
 
   it('includes project name in the instructions', () => {
     const result = buildPromptQualityInstructions('my-app', sessionMeta);
-    expect(result).toContain('Project: my-app');
+    expect(result).toContain('项目：my-app');
   });
 
   it('formats session shape header with structured counts', () => {
     const result = buildPromptQualityInstructions('my-app', sessionMeta);
-    expect(result).toContain('Session shape: 8 user messages, 12 assistant messages, 31 tool exchanges');
+    expect(result).toContain('会话结构：8 条用户消息、12 条助手消息、31 次工具调用');
   });
 
   it('handles zero tool exchanges', () => {
@@ -423,7 +423,7 @@ describe('buildPromptQualityInstructions', () => {
       assistantMessageCount: 2,
       toolExchangeCount: 0,
     });
-    expect(result).toContain('2 user messages, 2 assistant messages, 0 tool exchanges');
+    expect(result).toContain('2 条用户消息、2 条助手消息、0 次工具调用');
   });
 
   it('omits Context signals line when meta is not provided', () => {
@@ -460,12 +460,12 @@ describe('buildPromptQualityInstructions', () => {
 describe('buildFacetOnlyInstructions', () => {
   it('includes project name', () => {
     const result = buildFacetOnlyInstructions('my-app', null);
-    expect(result).toContain('Project: my-app');
+    expect(result).toContain('项目：my-app');
   });
 
   it('includes session summary when provided', () => {
     const result = buildFacetOnlyInstructions('my-app', 'Fixed auth bug');
-    expect(result).toContain('Session Summary: Fixed auth bug');
+    expect(result).toContain('会话摘要：Fixed auth bug');
   });
 
   it('omits session summary when null', () => {

@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide covers everything you need 
 
 ## Prerequisites
 
-- **Node.js** 18 or later
+- **Node.js** 20 or later
 - **pnpm** >= 9
 
 ## Getting Started
@@ -17,8 +17,10 @@ cd code-insights
 # Install dependencies (workspace root)
 pnpm install
 
-# Build all packages
+# Verify all packages
 pnpm build
+pnpm typecheck
+pnpm test
 
 # Link CLI for local testing
 cd cli && npm link

@@ -313,17 +313,17 @@ describe('Facets routes', () => {
       expect(body.count).toBe(0);
     });
 
-    it('filters by project', async () => {
+    it('filters missing facets by project name', async () => {
       seedProject('proj-1', 'alpha');
       seedProject('proj-2', 'beta');
-      seedSession('sess-1', 'proj-1');
-      seedSession('sess-2', 'proj-2');
+      seedSession('sess-1', 'proj-1', { project_name: 'alpha' });
+      seedSession('sess-2', 'proj-2', { project_name: 'beta' });
       seedInsight('sess-1', 'proj-1', 'analysis');
       seedInsight('sess-2', 'proj-2', 'analysis');
       // Neither has facets
 
       const app = createApp();
-      const res = await app.request('/api/facets/missing?project=proj-1');
+      const res = await app.request('/api/facets/missing?project=alpha');
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.sessionIds).toContain('sess-1');
@@ -534,7 +534,7 @@ describe('Facets routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('LLM not configured');
+      expect(body.error).toContain('LLM 未配置');
     });
 
     it('returns 400 when sessionIds missing from body', async () => {
@@ -557,7 +557,7 @@ describe('Facets routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('Maximum 200 sessions');
+      expect(body.error).toContain('最多 200 个会话');
     });
   });
 
@@ -594,7 +594,7 @@ describe('Facets routes', () => {
       expect(completeData).toMatchObject({ completed: 1, failed: 0, total: 1 });
     });
 
-    it('counts session as failed when session not found', async () => {
+    it('skips missing sessions without counting them as failures', async () => {
       mockIsLLMConfigured.mockReturnValue(true);
 
       const app = createApp();
@@ -608,11 +608,12 @@ describe('Facets routes', () => {
       const text = await res.text();
       const events = parseSSEEvents(text);
 
+      expect(events.some(e => e.event === 'progress')).toBe(false);
       const completeEvents = events.filter(e => e.event === 'complete');
       expect(completeEvents).toHaveLength(1);
 
       const completeData = JSON.parse(completeEvents[0].data);
-      expect(completeData).toMatchObject({ completed: 0, failed: 1, total: 1 });
+      expect(completeData).toMatchObject({ completed: 0, failed: 0, total: 1 });
     });
 
     it('skips sessions with existing facets when force=false', async () => {
@@ -633,11 +634,12 @@ describe('Facets routes', () => {
       const text = await res.text();
       const events = parseSSEEvents(text);
 
+      expect(events.some(e => e.event === 'progress')).toBe(false);
       const completeEvents = events.filter(e => e.event === 'complete');
       expect(completeEvents).toHaveLength(1);
 
       const completeData = JSON.parse(completeEvents[0].data);
-      expect(completeData).toMatchObject({ completed: 1, failed: 0, total: 1 });
+      expect(completeData).toMatchObject({ completed: 0, failed: 0, total: 1 });
 
       // extractFacetsOnly should NOT have been called (skipped)
       expect(mockExtractFacetsOnly).not.toHaveBeenCalled();
@@ -679,7 +681,7 @@ describe('Facets routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('LLM not configured');
+      expect(body.error).toContain('LLM 未配置');
     });
 
     it('returns 400 when sessionIds missing from body', async () => {
@@ -692,7 +694,7 @@ describe('Facets routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('sessionIds array required');
+      expect(body.error).toContain('需要 sessionIds 数组');
     });
 
     it('returns 400 when sessionIds exceeds 200', async () => {
@@ -705,7 +707,7 @@ describe('Facets routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('Maximum 200 sessions');
+      expect(body.error).toContain('最多 200 个会话');
     });
   });
 
@@ -757,17 +759,18 @@ describe('Facets routes', () => {
       const text = await res.text();
       const events = parseSSEEvents(text);
 
+      expect(events.some(e => e.event === 'progress')).toBe(false);
       const completeEvents = events.filter(e => e.event === 'complete');
       expect(completeEvents).toHaveLength(1);
 
       const completeData = JSON.parse(completeEvents[0].data);
-      expect(completeData).toMatchObject({ completed: 1, failed: 0, total: 1 });
+      expect(completeData).toMatchObject({ completed: 0, failed: 0, total: 1 });
 
       // analyzePromptQuality should NOT have been called (skipped)
       expect(mockAnalyzePromptQuality).not.toHaveBeenCalled();
     });
 
-    it('counts session as failed when session not found', async () => {
+    it('skips missing sessions without counting them as failures', async () => {
       mockIsLLMConfigured.mockReturnValue(true);
 
       const app = createApp();
@@ -781,11 +784,12 @@ describe('Facets routes', () => {
       const text = await res.text();
       const events = parseSSEEvents(text);
 
+      expect(events.some(e => e.event === 'progress')).toBe(false);
       const completeEvents = events.filter(e => e.event === 'complete');
       expect(completeEvents).toHaveLength(1);
 
       const completeData = JSON.parse(completeEvents[0].data);
-      expect(completeData).toMatchObject({ completed: 0, failed: 1, total: 1 });
+      expect(completeData).toMatchObject({ completed: 0, failed: 0, total: 1 });
     });
   });
 });

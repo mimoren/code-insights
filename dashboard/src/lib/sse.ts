@@ -9,7 +9,7 @@
  * Handles partial chunks by buffering lines until a complete event is received.
  */
 export async function* parseSSEStream(
-  body: ReadableStream<Uint8Array>
+  body: ReadableStream<Uint8Array<ArrayBuffer>>
 ): AsyncGenerator<{ event: string; data: string }> {
   const reader = body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';

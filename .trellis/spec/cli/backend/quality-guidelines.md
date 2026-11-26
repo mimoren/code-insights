@@ -43,7 +43,7 @@ pnpm --filter @code-insights/cli build
 code-insights --help    # 或 ./cli/dist/index.js --help
 ```
 
-根目录 `pnpm test` 走 `vitest.workspace.ts`，一次跑 cli + server 两包（dashboard 无测试，不在内）。CI（`.github/workflows/ci.yml`）在 Node 20 上跑 `pnpm build && pnpm test`——本地验收至少对齐这两步。
+根目录 `pnpm test` 走 `vitest.workspace.ts`，一次跑 cli + server 两包（dashboard 无测试，不在内）。CI（`.github/workflows/ci.yml`）在 Node 20 上跑 `pnpm build && pnpm typecheck && pnpm test`，本地验收对齐这三步。
 
 成功声明不得超过证据：typecheck ≠ 单测 ≠ 真命令跑通。涉及 sync 的改动，至少对一个真实 fixture 或 `--dry-run` 看输出。
 

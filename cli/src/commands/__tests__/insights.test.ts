@@ -248,7 +248,7 @@ describe('runInsightsCommand — provider mode (no --native)', () => {
     const { runInsightsCommand } = await import('../insights.js');
     await expect(
       runInsightsCommand({ sessionId: 'nonexistent', native: false, quiet: true })
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toThrow(/未找到/);
   });
 });
 
@@ -608,7 +608,7 @@ describe('insightsCheckCommand — --analyze flag', () => {
     expect(stdoutOutput).toMatch(/\[3\/3\]/);
     // Summary line goes to console.log
     const logOutput = (consoleSpy.mock.calls as Array<unknown[]>).map(c => String(c[0])).join('\n');
-    expect(logOutput).toMatch(/Analyzed 3 session/i);
+    expect(logOutput).toMatch(/已分析 3 个会话。/);
   });
 
   it('continues processing after one session fails', async () => {
@@ -626,7 +626,7 @@ describe('insightsCheckCommand — --analyze flag', () => {
     const logOutput = (consoleSpy.mock.calls as Array<unknown[]>).map(c => String(c[0])).join('\n');
     expect(stdoutOutput).toMatch(/\[1\/3\]/);
     expect(errOutput).toMatch(/fail on session 0/i);
-    expect(logOutput).toMatch(/Analyzed 2 session/i);
+    expect(logOutput).toMatch(/已分析 2 个会话，1 个失败。/);
   });
 
   it('exits silently with --analyze when 0 unanalyzed sessions', async () => {

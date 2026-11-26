@@ -139,7 +139,7 @@ describe('Sessions routes', () => {
       const res = await app.request('/api/sessions/nonexistent');
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toBe('Not found');
+      expect(body.error).toBe('未找到');
     });
   });
 
@@ -177,7 +177,7 @@ describe('Sessions routes', () => {
       });
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toBe('customTitle is required');
+      expect(body.error).toBe('缺少 customTitle 参数');
     });
 
     it('returns 404 when session does not exist', async () => {

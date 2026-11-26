@@ -88,7 +88,7 @@ describe('Projects routes', () => {
       const res = await app.request('/api/projects/nonexistent');
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toBe('Not found');
+      expect(body.error).toBe('未找到');
     });
   });
 });

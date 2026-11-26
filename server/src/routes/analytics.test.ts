@@ -66,7 +66,7 @@ describe('Analytics routes', () => {
       const res = await app.request('/api/analytics/dashboard?range=invalid');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain('Invalid range');
+      expect(body.error).toContain('无效的范围');
     });
   });
 

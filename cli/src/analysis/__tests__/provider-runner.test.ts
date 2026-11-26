@@ -193,7 +193,7 @@ describe('ProviderRunner.runAnalysis() — missing usage', () => {
 describe('ProviderRunner — constructor', () => {
   it('throws on unknown provider', () => {
     expect(() => new ProviderRunner({ provider: 'unknown' as never, model: 'x', apiKey: 'k' }))
-      .toThrow(/Unknown LLM provider/);
+      .toThrow(/未知的 LLM 提供商/);
   });
 });
 

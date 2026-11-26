@@ -102,7 +102,7 @@ export function WeekAtAGlanceStrip({
         .slice(0, MAX_CHARACTER_BADGES)
     : [];
 
-  const showStreak = (streak ?? 0) >= 2;
+  const streakCount = streak ?? 0;
 
   // Share card download — canvas drawn ephemerally, no DOM element ref needed
   const [isDownloading, setIsDownloading] = useState(false);
@@ -188,10 +188,10 @@ export function WeekAtAGlanceStrip({
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-            {showStreak && (
+            {streakCount >= 2 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-xs font-medium border border-amber-500/20">
                 <Flame className="h-3 w-3" />
-                {t('weekStrip.streak', { count: streak })}
+                {t('weekStrip.streak', { count: streakCount })}
               </span>
             )}
             {(rateLimitCount ?? 0) > 0 && (

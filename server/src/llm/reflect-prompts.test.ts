@@ -17,7 +17,7 @@ describe('FRICTION_WINS_SYSTEM_PROMPT', () => {
   });
 
   it('contains "valid JSON"', () => {
-    expect(FRICTION_WINS_SYSTEM_PROMPT).toContain('valid JSON');
+    expect(FRICTION_WINS_SYSTEM_PROMPT).toContain('有效的 JSON');
   });
 });
 
@@ -34,7 +34,7 @@ describe('WORKING_STYLE_SYSTEM_PROMPT', () => {
   });
 
   it('contains "40 characters"', () => {
-    expect(WORKING_STYLE_SYSTEM_PROMPT).toContain('40 characters');
+    expect(WORKING_STYLE_SYSTEM_PROMPT).toContain('40 个字符');
   });
 });
 
@@ -68,8 +68,8 @@ describe('generateFrictionWinsPrompt', () => {
       totalSessions: 10,
       period: '2026-W09',
     });
-    expect(result).toContain('FRICTION CATEGORIES');
-    expect(result).toContain('EFFECTIVE PATTERNS');
+    expect(result).toContain('摩擦类别');
+    expect(result).toContain('有效模式');
   });
 
   it('includes PQ signals section when pqSignals provided with data', () => {
@@ -83,7 +83,7 @@ describe('generateFrictionWinsPrompt', () => {
         strengths: [{ category: 'precise-request', count: 2 }],
       },
     });
-    expect(result).toContain('PROMPT QUALITY SIGNALS');
+    expect(result).toContain('PROMPT QUALITY SIGNALS（补充）');
     expect(result).toContain('vague-request');
     expect(result).toContain('precise-request');
   });
@@ -95,7 +95,7 @@ describe('generateFrictionWinsPrompt', () => {
       totalSessions: 10,
       period: '2026-W09',
     });
-    expect(result).not.toContain('PROMPT QUALITY SIGNALS');
+    expect(result).not.toContain('PROMPT QUALITY SIGNALS（补充）');
   });
 
   it('excludes PQ section when pqSignals has empty arrays', () => {
@@ -106,7 +106,7 @@ describe('generateFrictionWinsPrompt', () => {
       period: '2026-W09',
       pqSignals: { deficits: [], strengths: [] },
     });
-    expect(result).not.toContain('PROMPT QUALITY SIGNALS');
+    expect(result).not.toContain('PROMPT QUALITY SIGNALS（补充）');
   });
 
   it('slices frictionCategories to max 15', () => {
@@ -171,8 +171,8 @@ describe('generateRulesSkillsPrompt', () => {
 
   it('includes "RECURRING FRICTION" and "EFFECTIVE PATTERNS" sections', () => {
     const result = generateRulesSkillsPrompt(sampleData);
-    expect(result).toContain('RECURRING FRICTION');
-    expect(result).toContain('EFFECTIVE PATTERNS');
+    expect(result).toContain('反复出现的摩擦');
+    expect(result).toContain('有效模式');
   });
 
   it('contains the friction data as JSON', () => {
@@ -208,15 +208,15 @@ describe('generateWorkingStylePrompt', () => {
 
   it('includes "WORKFLOW PATTERNS", "OUTCOME SATISFACTION", "SESSION TYPES" sections', () => {
     const result = generateWorkingStylePrompt(sampleData);
-    expect(result).toContain('WORKFLOW PATTERNS');
-    expect(result).toContain('OUTCOME SATISFACTION');
-    expect(result).toContain('SESSION TYPES');
+    expect(result).toContain('工作流模式');
+    expect(result).toContain('成果满意度');
+    expect(result).toContain('会话类型');
   });
 
   it('includes friction frequency count', () => {
     const result = generateWorkingStylePrompt(sampleData);
     expect(result).toContain('12');
-    expect(result).toContain('FRICTION FREQUENCY');
+    expect(result).toContain('摩擦频率');
   });
 
   it('contains distribution data as JSON', () => {

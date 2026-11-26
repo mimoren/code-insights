@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import type { SyntaxHighlighterProps } from 'react-syntax-highlighter';
@@ -20,7 +20,7 @@ export function AssistantMarkdown({ content, codeStyle, searchQuery }: Assistant
     return (children: React.ReactNode) => highlightText(children, searchQuery);
   }, [searchQuery]);
 
-  const components = useMemo(() => ({
+  const components = useMemo<Components>(() => ({
     p({ children }: { children?: React.ReactNode }) {
       return <p>{hl(children)}</p>;
     },
@@ -57,8 +57,7 @@ export function AssistantMarkdown({ content, codeStyle, searchQuery }: Assistant
         </td>
       );
     },
-    code(props: { children?: React.ReactNode; className?: string; [key: string]: unknown }) {
-      const { children, className, ...rest } = props;
+    code({ children, className, node: _node, ...rest }) {
       const langMatch = /language-(\w+)/.exec(className || '');
       const isBlock = !!langMatch;
       const codeString = String(children).replace(/\n$/, '');
